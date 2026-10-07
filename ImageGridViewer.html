@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Grid Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        
+        input[type="file"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        input[type="range"] {
+            width: 120px;
+            cursor: pointer;
+        }
+        
+        label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        input[type="checkbox"] {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+        
+        .grid {
+            --size: 120px; /* image width; the only place the default size lives in CSS */
+            display: grid;
+            grid-template-columns: repeat(auto-fill, calc(var(--size) + 6px));
+            gap: 10px;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        
+        .grid-item {
+            width: calc(var(--size) + 6px);
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #f0f0f0;
+            cursor: pointer;
+            padding: 3px;
+            display: flex;
+            flex-direction: column;
+            height: auto;
+        }
+        
+        .grid-item.no-filename {
+            height: calc(var(--size) + 6px);
+        }
+        
+        .grid-item img {
+            width: 100%;
+            height: var(--size);
+            object-fit: contain;
+            display: block;
+            flex-shrink: 0;
+        }
+        
+        .grid-item-filename {
+            font-size: 11pt;
+            color: #666;
+            padding: 3px 2px;
+            text-align: center;
+            word-break: break-word;
+            line-height: 1.2;
+            background: #f0f0f0;
+            display: none;
+            flex-shrink: 0;
+        }
+        
+        .grid-item-filename.show {
+            display: block;
+        }
+        
+        .message {
+            padding: 10px 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .message.show {
+            display: block;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Grid Viewer</h1>
+    
+    <div class="controls">
+        <input type="file" id="folderInput" webkitdirectory directory multiple accept="image/*">
+        <label for="widthSlider">Width: <input type="range" id="widthSlider" min="50" max="300" value="120" step="10"> <span id="widthValue">120</span>px</label>
+        <label><input type="checkbox" id="showNamesCheckbox"> Show filenames</label>
+    </div>
+    
+    <div id="message" class="message"></div>
+    <div class="grid" id="grid"></div>
+
+    <script>
+        const folderInput = document.getElementById('folderInput');
+        const grid = document.getElementById('grid');
+        const widthSlider = document.getElementById('widthSlider');
+        const widthValue = document.getElementById('widthValue');
+        const messageDiv = document.getElementById('message');
+        const showNamesCheckbox = document.getElementById('showNamesCheckbox');
+        
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+        
+        function showMessage(text, type) {
+            messageDiv.textContent = text;
+            messageDiv.className = 'message show ' + type;
+        }
+        
+        folderInput.addEventListener('change', (e) => {
+            grid.innerHTML = '';
+            
+            const files = Array.from(e.target.files);
+            const imageFiles = files.filter(file => 
+                imageExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+            );
+            
+            if (imageFiles.length === 0) {
+                showMessage('No image files found', 'error');
+                return;
+            }
+            
+            // Sort alphabetically with natural number handling
+            imageFiles.sort((a, b) => {
+                return a.name.localeCompare(b.name, undefined, {
+                    numeric: true,
+                    sensitivity: 'base'
+                });
+            });
+            
+            let loaded = 0;
+            
+            // Create placeholder divs in the correct order first
+            const placeholders = imageFiles.map((file, index) => {
+                const div = document.createElement('div');
+                div.className = 'grid-item';
+                if (!showNamesCheckbox.checked) {
+                    div.classList.add('no-filename');
+                }
+                div.dataset.index = index;
+                grid.appendChild(div);
+                return div;
+            });
+            
+            // Now load images and insert into their correct positions
+            imageFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const div = placeholders[index];
+                    
+                    const img = document.createElement('img');
+                    img.src = event.target.result;
+                    div.appendChild(img);
+                    
+                    const filename = document.createElement('div');
+                    filename.className = 'grid-item-filename';
+                    if (showNamesCheckbox.checked) {
+                        filename.classList.add('show');
+                    }
+                    filename.textContent = file.name;
+                    div.appendChild(filename);
+                    
+                    loaded++;
+                    if (loaded === imageFiles.length) {
+                        showMessage('Loaded ' + imageFiles.length + ' images', 'success');
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+        
+        // Slider just updates the --size CSS variable; everything else follows from CSS
+        widthSlider.addEventListener('input', (e) => {
+            const width = parseInt(e.target.value);
+            widthValue.textContent = width;
+            grid.style.setProperty('--size', width + 'px');
+        });
+        
+        showNamesCheckbox.addEventListener('change', () => {
+            const items = grid.querySelectorAll('.grid-item');
+            const filenames = grid.querySelectorAll('.grid-item-filename');
+            
+            if (showNamesCheckbox.checked) {
+                filenames.forEach(filename => {
+                    filename.classList.add('show');
+                });
+                items.forEach(item => {
+                    item.classList.remove('no-filename');
+                });
+            } else {
+                filenames.forEach(filename => {
+                    filename.classList.remove('show');
+                });
+                items.forEach(item => {
+                    item.classList.add('no-filename');
+                });
+            }
+        });
+        
+        // Set initial state - add no-filename class since checkbox starts unchecked
+        const initialItems = grid.querySelectorAll('.grid-item');
+        initialItems.forEach(item => {
+            item.classList.add('no-filename');
+        });
+    </script>
+</body>
+</html>
